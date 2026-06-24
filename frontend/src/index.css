@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #030712; /* slate-950 */
+    font-family: 'Outfit', 'Inter', sans-serif;
+  }
+}
+
+/* Custom premium design system classes */
+@layer components {
+  /* Premium Glassmorphic Card */
+  .glass-card {
+    background: rgba(15, 23, 42, 0.45); /* bg-slate-900/45 */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+
+  .glass-card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .glass-card-hover:hover {
+    background: rgba(15, 23, 42, 0.6);
+    border-color: rgba(139, 92, 246, 0.25); /* brand-500/25 */
+    box-shadow: 0 12px 40px 0 rgba(139, 92, 246, 0.08);
+    transform: translateY(-2px);
+  }
+
+  /* Glassmorphic input field */
+  .glass-input {
+    background: rgba(15, 23, 42, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.5rem;
+    color: #f8fafc; /* slate-50 */
+    transition: all 0.2s ease;
+  }
+
+  .glass-input:focus {
+    outline: none;
+    background: rgba(15, 23, 42, 0.55);
+    border-color: rgba(139, 92, 246, 0.5); /* brand-500/50 */
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+  }
+
+  /* Neon Glowing Accents */
+  .neon-glow-indigo {
+    box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.3);
+  }
+  
+  .neon-glow-brand {
+    box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.3);
+  }
+}
+
+/* Background Radial Dots Grid effect */
+.bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.035) 1px, transparent 0);
+}
+
+/* Custom Webkit scrollbar for premium feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #030712;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.4);
+}
