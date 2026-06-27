@@ -102,17 +102,35 @@ export const Upload: React.FC = () => {
         },
       });
 
-      setDocId(response.data.id);
+      const uploadedDocId = response.data.id;
+      setDocId(uploadedDocId);
+      setStatus('processing');
+
+      // Poll document status until analysis completes
+      const pollStatus = async (): Promise<'completed' | 'failed'> => {
+        const maxAttempts = 60;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          const statusRes = await api.get(`/documents/${uploadedDocId}`);
+          if (statusRes.data.status === 'completed') return 'completed';
+          if (statusRes.data.status === 'failed') return 'failed';
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+        }
+        throw new Error('Document processing timed out. Please check the dashboard for status.');
+      };
+
+      const finalStatus = await pollStatus();
+      if (finalStatus === 'failed') {
+        throw new Error('Document analysis failed during processing. Please try uploading again.');
+      }
+
       setStatus('success');
-      
-      // Auto redirect to analysis page after 2 seconds
       setTimeout(() => {
-        navigate(`/analysis?document_id=${response.data.id}`);
-      }, 2000);
+        navigate(`/analysis?document_id=${uploadedDocId}`);
+      }, 1500);
 
     } catch (err: any) {
       console.error('Upload failed:', err);
-      const msg = err.response?.data?.detail || 'Upload failed. The document could not be analyzed.';
+      const msg = err.response?.data?.detail || err.message || 'Upload failed. The document could not be analyzed.';
       setErrorMsg(msg);
       setStatus('error');
     }

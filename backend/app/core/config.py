@@ -30,6 +30,16 @@ class Settings:
     ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "admin@clauseiq.com")
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "AdminSecurePassword2026!")
 
+    # CORS — comma-separated list of allowed frontend origins
+    CORS_ORIGINS: list[str] = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173",
+        ).split(",")
+        if origin.strip()
+    ]
+
     def __init__(self):
         # Create storage directories
         self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

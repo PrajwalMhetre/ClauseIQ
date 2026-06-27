@@ -56,6 +56,7 @@ export const Analysis: React.FC = () => {
   const [docMetadata, setDocMetadata] = useState<DocumentMetadata | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'summary' | 'clauses' | 'risks'>('summary');
   
@@ -70,30 +71,55 @@ export const Analysis: React.FC = () => {
       return;
     }
 
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
     const fetchAnalysisData = async () => {
       try {
-        // Fetch metadata
         const metaRes = await api.get(`/documents/${documentId}`);
+        if (cancelled) return;
+
         setDocMetadata(metaRes.data);
 
-        if (metaRes.data.status !== 'completed') {
-          setError('Analysis is still in progress. Please check again in a few moments.');
+        if (metaRes.data.status === 'processing') {
+          setProcessing(true);
+          setLoading(false);
+          pollTimer = setTimeout(fetchAnalysisData, 3000);
+          return;
+        }
+
+        if (metaRes.data.status === 'failed') {
+          setError('Document analysis failed during processing. Please try re-uploading.');
+          setProcessing(false);
           setLoading(false);
           return;
         }
 
-        // Fetch analysis details
         const detailsRes = await api.get(`/analysis/details/${documentId}`);
+        if (cancelled) return;
+
         setAnalysis(detailsRes.data);
+        setProcessing(false);
+        setLoading(false);
       } catch (err: any) {
+        if (cancelled) return;
         console.error('Failed to load analysis:', err);
         setError('Failed to retrieve analysis logs. Please ensure the document exists and is processed.');
-      } finally {
+        setProcessing(false);
         setLoading(false);
       }
     };
 
+    setLoading(true);
+    setProcessing(false);
+    setError(null);
+    setAnalysis(null);
     fetchAnalysisData();
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   }, [documentId]);
 
   const handleStartChat = () => {
@@ -111,11 +137,13 @@ export const Analysis: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading || processing) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center py-24">
         <Loader2 size={36} className="animate-spin text-brand-500 mb-4" />
-        <p className="text-slate-400 text-sm animate-pulse">Running semantic parsing logs...</p>
+        <p className="text-slate-400 text-sm animate-pulse">
+          {processing ? 'AI is analyzing your contract — this updates automatically...' : 'Running semantic parsing logs...'}
+        </p>
       </div>
     );
   }

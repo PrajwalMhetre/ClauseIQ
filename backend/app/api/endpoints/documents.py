@@ -1,7 +1,7 @@
 import os
 import uuid
 import shutil
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from app.db.database import get_db
@@ -22,9 +22,22 @@ class DocumentResponse(BaseModel):
     file_size: int
     status: str
     created_at: datetime.datetime
+    risk_score: Optional[int] = None
 
     class Config:
         from_attributes = True
+
+
+def _document_to_response(doc: Document) -> DocumentResponse:
+    risk_score = doc.analysis_result.risk_score if doc.analysis_result else None
+    return DocumentResponse(
+        id=doc.id,
+        filename=doc.filename,
+        file_size=doc.file_size or 0,
+        status=doc.status,
+        created_at=doc.created_at,
+        risk_score=risk_score,
+    )
 
 
 def process_document_background(document_id: str, file_path: str, filename: str, db_session_factory):
@@ -156,7 +169,7 @@ def upload_document(
         SessionLocal
     )
 
-    return db_doc
+    return _document_to_response(db_doc)
 
 
 @router.get("/list", response_model=List[DocumentResponse])
@@ -166,7 +179,7 @@ def list_documents(
 ):
     """Retrieve list of all uploaded contract documents for current user."""
     docs = db.query(Document).filter(Document.user_id == current_user.id).order_by(Document.created_at.desc()).all()
-    return docs
+    return [_document_to_response(doc) for doc in docs]
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
@@ -179,7 +192,7 @@ def get_document(
     doc = db.query(Document).filter(Document.id == document_id, Document.user_id == current_user.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    return doc
+    return _document_to_response(doc)
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_200_OK)
