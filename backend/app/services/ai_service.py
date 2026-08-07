@@ -1,7 +1,6 @@
 import json
 import re
 import urllib.request
-from openai import OpenAI
 from app.core.config import settings
 
 class AIService:
@@ -11,6 +10,7 @@ class AIService:
         # 1. Try OpenAI
         if settings.OPENAI_API_KEY:
             try:
+                from openai import OpenAI
                 client = OpenAI(api_key=settings.OPENAI_API_KEY)
                 response = client.chat.completions.create(
                     model=settings.OPENAI_MODEL,
@@ -22,6 +22,8 @@ class AIService:
                     temperature=0.1
                 )
                 return response.choices[0].message.content
+            except ImportError:
+                print("OpenAI library not installed. Trying Gemini fallback...")
             except Exception as e:
                 print(f"OpenAI completion failed: {e}. Trying Gemini fallback...")
 
