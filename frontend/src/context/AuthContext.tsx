@@ -25,16 +25,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Restore session from localStorage on application load
   useEffect(() => {
     const savedToken = localStorage.getItem('clauseiq_token');
-    const savedUser = localStorage.getItem('clauseiq_user');
-    
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
+    if (!savedToken) { setLoading(false); return; }
+    api.get('/auth/me').then(({ data }) => {
+      setToken(savedToken); setUser(data); localStorage.setItem('clauseiq_user', JSON.stringify(data));
+    }).catch(() => {
+      localStorage.removeItem('clauseiq_token'); localStorage.removeItem('clauseiq_user');
+    }).finally(() => setLoading(false));
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -65,6 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    void api.post('/auth/logout').catch(() => undefined);
     localStorage.removeItem('clauseiq_token');
     localStorage.removeItem('clauseiq_user');
     setToken(null);

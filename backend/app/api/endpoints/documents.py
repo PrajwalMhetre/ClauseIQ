@@ -1,4 +1,3 @@
-import os
 import uuid
 import shutil
 from typing import List, Optional
@@ -7,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.models import Document, AnalysisResult, User
 from app.api.endpoints.auth import get_current_user
-from app.services.pdf_service import PDFService
+from app.services.pdf_service import PDFError, PDFService
 from app.services.ai_service import AIService
 from app.services.chroma_service import ChromaService
 from app.core.config import settings
@@ -55,6 +54,7 @@ def process_document_background(document_id: str, file_path: str, filename: str,
         analysis_data = AIService.analyze_document(pages_content, filename)
         
         # 4. Save results to Database
+        db.query(AnalysisResult).filter(AnalysisResult.document_id == document_id).delete()
         db_analysis = AnalysisResult(
             document_id=document_id,
             summary=analysis_data.get("summary", ""),
@@ -71,7 +71,7 @@ def process_document_background(document_id: str, file_path: str, filename: str,
         db.commit()
         
     except Exception as e:
-        print(f"Error processing document {document_id}: {str(e)}")
+        print(f"Document processing failed for {document_id}: {type(e).__name__}")
         # Update document status to failed
         doc = db.query(Document).filter(Document.id == document_id).first()
         if doc:
@@ -89,25 +89,22 @@ def upload_document(
     db: Session = Depends(get_db)
 ):
     """Upload a contract PDF and trigger async parsing and RAG indexing."""
-    # File validation
-    if not file.filename.lower().endswith(".pdf"):
+    original_name = file.filename or ""
+    if not original_name.lower().endswith(".pdf"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported file format. Only PDF documents are allowed."
         )
 
-    # Limit file uploads to 15MB
-    MAX_FILE_SIZE = 15 * 1024 * 1024
     try:
-        # Check size by reading a chunk or reading metadata
-        file_size = 0
-        # Quick validation
         contents = file.file.read()
         file_size = len(contents)
-        if file_size > MAX_FILE_SIZE:
+        if not contents.startswith(b"%PDF"):
+            raise HTTPException(status_code=400, detail="The uploaded file is not a PDF.")
+        if file_size > settings.MAX_UPLOAD_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="File size exceeds maximum limit of 15MB."
+                detail=f"File size exceeds the configured limit of {settings.MAX_UPLOAD_BYTES // (1024 * 1024)}MB."
             )
         # Reset file cursor after reading size
         file.file.seek(0)
@@ -116,7 +113,7 @@ def upload_document(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Could not read upload file size: {str(e)}"
+            detail="Could not read upload file."
         )
 
     # Generate document ID and layout directory
@@ -124,7 +121,9 @@ def upload_document(
     doc_dir = settings.UPLOAD_DIR / document_id
     doc_dir.mkdir(parents=True, exist_ok=True)
     
-    file_path = doc_dir / file.filename
+    # Store server-generated names only; the original is metadata, never a path.
+    safe_name = "document.pdf"
+    file_path = doc_dir / safe_name
 
     try:
         # Save file to disk
@@ -133,24 +132,21 @@ def upload_document(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save document file: {str(e)}"
+            detail="Failed to save document file."
         )
 
-    # Verify PyMuPDF can parse it
-    if not PDFService.validate_pdf(str(file_path)):
-        # Cleanup file if invalid
+    try:
+        PDFService.validate_pdf(str(file_path), settings.MAX_PDF_PAGES)
+    except PDFError as exc:
         if doc_dir.exists():
             shutil.rmtree(doc_dir)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid PDF file or file is corrupted."
-        )
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Create Database Model
     db_doc = Document(
         id=document_id,
         user_id=current_user.id,
-        filename=file.filename,
+        filename=original_name.replace("/", "_").replace("\\", "_")[:255],
         file_path=str(file_path),
         file_size=file_size,
         status="processing"
@@ -165,7 +161,7 @@ def upload_document(
         process_document_background,
         document_id,
         str(file_path),
-        file.filename,
+        original_name,
         SessionLocal
     )
 

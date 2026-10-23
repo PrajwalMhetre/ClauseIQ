@@ -220,3 +220,16 @@ __marimo__/
 venv/
 __pycache__/
 *.db
+backend/uploaded_documents/
+backend/chroma_db/
+
+# Dependencies and local environments
+node_modules/
+frontend/node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example

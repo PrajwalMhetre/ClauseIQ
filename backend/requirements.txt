@@ -6,10 +6,12 @@ passlib[bcrypt]
 PyJWT
 python-multipart
 python-dotenv
-PyMuPDF
+PyMuPDF>=1.24,<2
 chromadb
 openai
 langchain
 langchain-community
 bcrypt
 email-validator
+pytest
+httpx

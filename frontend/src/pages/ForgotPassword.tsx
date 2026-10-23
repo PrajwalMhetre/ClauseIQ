@@ -1,26 +1,28 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
 import { Scale, Mail, CheckCircle2, ArrowLeft, Loader2 } from 'lucide-react';
+import api from '../services/api';
 
 type ForgotPasswordFormInput = {
   email: string;
 };
 
 export const ForgotPassword: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token');
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<ForgotPasswordFormInput>();
 
-  const onSubmit = async (_data: ForgotPasswordFormInput) => {
+  const onSubmit = async (data: ForgotPasswordFormInput) => {
     setSubmitting(true);
-    // Simulate sending recovery email
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await api.post('/auth/password-reset/request', data);
       setSuccess(true);
-    }, 1500);
+    } finally { setSubmitting(false); }
   };
 
   return (
@@ -45,7 +47,7 @@ export const ForgotPassword: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        {!success ? (
+        {!success && !token ? (
           <>
             <h2 className="font-outfit text-2xl font-extrabold text-white text-center mb-2">Reset Password</h2>
             <p className="text-slate-400 text-sm text-center mb-8">Enter your email to receive recovery instructions</p>
@@ -88,6 +90,8 @@ export const ForgotPassword: React.FC = () => {
               </button>
             </form>
           </>
+        ) : token && !success ? (
+          <ResetPassword token={token} onComplete={() => setSuccess(true)} />
         ) : (
           <div className="text-center py-6">
             <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -95,7 +99,7 @@ export const ForgotPassword: React.FC = () => {
             </div>
             <h2 className="font-outfit text-2xl font-extrabold text-white mb-2">Check Your Email</h2>
             <p className="text-slate-400 text-sm mb-8 max-w-sm mx-auto leading-relaxed">
-              We have dispatched instructions to your address. Please verify your inbox to reset your password.
+              If an active account exists, reset instructions have been sent. Check your inbox.
             </p>
           </div>
         )}
@@ -109,6 +113,16 @@ export const ForgotPassword: React.FC = () => {
       </motion.div>
     </div>
   );
+};
+
+const ResetPassword: React.FC<{ token: string; onComplete: () => void }> = ({ token, onComplete }) => {
+  const { register, handleSubmit, formState: { errors } } = useForm<{ password: string }>();
+  const [submitting, setSubmitting] = useState(false);
+  const onSubmit = async ({ password }: { password: string }) => {
+    setSubmitting(true);
+    try { await api.post('/auth/password-reset/confirm', { token, password }); onComplete(); } finally { setSubmitting(false); }
+  };
+  return <><h2 className="font-outfit text-2xl font-extrabold text-white text-center mb-2">Choose a new password</h2><form onSubmit={handleSubmit(onSubmit)} className="space-y-5 mt-8"><input type="password" {...register('password', { required: 'Password is required', minLength: { value: 12, message: 'Use at least 12 characters' } })} className="glass-input w-full px-4 py-3.5 text-sm" placeholder="New password" />{errors.password && <span className="text-[10px] text-rose-400">{errors.password.message}</span>}<button disabled={submitting} className="w-full bg-gradient-to-r from-brand-600 to-indigo-600 text-white font-bold py-3.5 rounded-xl">{submitting ? 'Resetting…' : 'Reset password'}</button></form></>;
 };
 
 export default ForgotPassword;

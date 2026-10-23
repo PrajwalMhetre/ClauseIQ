@@ -12,12 +12,24 @@ class User(Base):
     full_name = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
+    session_version = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     # Relationships
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     chat_histories = relationship("ChatHistory", back_populates="user", cascade="all, delete-orphan")
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    user = relationship("User", back_populates="password_reset_tokens")
 
 
 class Document(Base):

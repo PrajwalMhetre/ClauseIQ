@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.database import Base, engine, SessionLocal
+from sqlalchemy import inspect, text
 from app.db.models import User
 from app.core import security
 from app.api.endpoints import auth, documents, analysis, chat, admin
@@ -22,31 +23,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Seed database with base models and admin account on startup
 @app.on_event("startup")
 def on_startup():
-    # 1. Create SQLite or PostgreSQL tables if not present
     Base.metadata.create_all(bind=engine)
-    
-    # 2. Seed Administrator account from environment variables
+    # Lightweight additive migration for existing installations without Alembic.
+    if "session_version" not in {column["name"] for column in inspect(engine).get_columns("users")}:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0"))
+    # Safe, opt-in bootstrap: production cannot silently get a known admin account.
+    if not (settings.ADMIN_BOOTSTRAP_EMAIL and settings.ADMIN_BOOTSTRAP_PASSWORD):
+        return
+    if len(settings.ADMIN_BOOTSTRAP_PASSWORD) < 12:
+        raise RuntimeError("ADMIN_BOOTSTRAP_PASSWORD must be at least 12 characters")
     db = SessionLocal()
     try:
-        admin_email = settings.ADMIN_EMAIL
+        admin_email = security.normalize_email(settings.ADMIN_BOOTSTRAP_EMAIL)
         existing_admin = db.query(User).filter(User.email == admin_email).first()
         if not existing_admin:
-            hashed_pwd = security.get_password_hash(settings.ADMIN_PASSWORD)
             new_admin = User(
                 email=admin_email,
-                hashed_password=hashed_pwd,
+                hashed_password=security.get_password_hash(settings.ADMIN_BOOTSTRAP_PASSWORD),
                 full_name="System Administrator",
                 is_active=True,
                 is_admin=True
             )
             db.add(new_admin)
             db.commit()
-            print(f"Database seeded: created default administrator account ({admin_email})")
-    except Exception as e:
-        print(f"Error seeding administrator account: {str(e)}")
+            print(f"Administrator bootstrap completed for {admin_email}")
     finally:
         db.close()
 
